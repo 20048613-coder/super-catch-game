@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>لعبة الميلان</title>
+
+<style>
+body{
+  margin:0;
+  background:#071126;
+  color:white;
+  font-family:Arial;
+  text-align:center;
+  touch-action:none;
+}
+main{
+  max-width:700px;
+  margin:auto;
+  padding:10px;
+}
+#info{
+  display:flex;
+  justify-content:space-around;
+  margin:10px 0;
+}
+canvas{
+  width:100%;
+  height:auto;
+  background:#111d3b;
+  border:2px solid #6681b8;
+  border-radius:15px;
+}
+button{
+  margin:10px 4px;
+  padding:14px 18px;
+  border:0;
+  border-radius:12px;
+  background:#22c55e;
+  color:#052e16;
+  font-size:17px;
+  font-weight:bold;
+}
+</style>
+</head>
+
+<body>
+<main>
+  <h2>📱 Super Catch Tilt</h2>
+
+  <div id="info">
+    <span id="score">النقاط: 0</span>
+    <span id="lives">الأرواح: 3</span>
+  </div>
+
+  <canvas id="game" width="700" height="500"></canvas>
+
+  <button id="start">ابدأ وفعّل الميلان</button>
+  <button id="calibrate">معايرة</button>
+
+  <p id="status">اضغط زر البدء، ثم اسمح بالوصول إلى الحركة.</p>
+</main>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const statusText = document.getElementById("status");
+
+let paddleX = 290;
+let score = 0;
+let lives = 3;
+let objects = [];
+let tilt = 0;
+let centerTilt = 0;
+let running = false;
+let frame = 0;
+
+function addObject(){
+  let random = Math.random();
+  let type = random < 0.75 ? "ball" : "bomb";
+
+  objects.push({
+    x: 25 + Math.random() * 650,
+    y: -25,
+    speed: 3 + score / 300,
+    type: type
+  });
+}
+
+function readTilt(event){
+  if(typeof event.gamma === "number"){
+    tilt = event.gamma;
+  }
+}
+
+async function enableTilt(){
+  try{
+    if(
+      typeof DeviceOrientationEvent !== "undefined" &&
+      typeof DeviceOrientationEvent.requestPermission === "function"
+    ){
+      const permission =
+        await DeviceOrientationEvent.requestPermission();
+
+      if(permission !== "granted"){
+        statusText.textContent =
+          "لم يتم السماح باستخدام مستشعر الحركة.";
+        return false;
+      }
+    }
+
+    window.addEventListener(
+      "deviceorientation",
+      readTilt,
+      true
+    );
+
+    centerTilt = tilt;
+
+    statusText.textContent =
+      "✅ الميلان يعمل. ميل الهاتف يمينًا ويسارًا.";
+
+    return true;
+  }catch(error){
+    statusText.textContent =
+      "تعذّر تشغيل الميلان. تأكد من السماح بالحركة في Safari.";
+
+    return false;
+  }
+}
+
+async function startGame(){
+  await enableTilt();
+
+  paddleX = 290;
+  score = 0;
+  lives = 3;
+  objects = [];
+  running = true;
+
+  addObject();
+  addObject();
+
+  cancelAnimationFrame(frame);
+  loop();
+}
+
+function update(){
+  let movement = tilt - centerTilt;
+
+  if(Math.abs(movement) < 2){
+    movement = 0;
+  }
+
+  paddleX += movement * 0.6;
+  paddleX = Math.max(0, Math.min(580, paddleX));
+
+  if(Math.random() < 0.025){
+    addObject();
+  }
+
+  for(let i = objects.length - 1; i >= 0; i--){
+    let object = objects[i];
+    object.y += object.speed;
+
+    const caught =
+      object.y > 445 &&
+      object.y < 495 &&
+      object.x > paddleX &&
+      object.x < paddleX + 120;
+
+    if(caught){
+      if(object.type === "bomb"){
+        lives--;
+      }else{
+        score += 10;
+      }
+
+      objects.splice(i, 1);
+    }else if(object.y > 530){
+      objects.splice(i, 1);
+    }
+  }
+
+  document.getElementById("score").textContent =
+    "النقاط: " + score;
+
+  document.getElementById("lives").textContent =
+    "الأرواح: " + lives;
+
+  if(lives <= 0){
+    running = false;
+    statusText.textContent =
+      "انتهت اللعبة. نتيجتك: " + score;
+  }
+}
+
+function draw(){
+  ctx.clearRect(0, 0, 700, 500);
+
+  ctx.fillStyle = "white";
+
+  for(let i = 0; i < 80; i++){
+    ctx.fillRect(
+      (i * 83) % 700,
+      (i * 47) % 440,
+      2,
+      2
+    );
+  }
+
+  ctx.fillStyle = "#22c55e";
+  ctx.fillRect(paddleX, 465, 120, 18);
+
+  ctx.textAlign = "center";
+  ctx.font = "28px Arial";
+
+  objects.forEach(object => {
+    ctx.fillText(
+      object.type === "bomb" ? "💣" : "🔵",
+      object.x,
+      object.y
+    );
+  });
+}
+
+function loop(){
+  if(!running) return;
+
+  update();
+  draw();
+
+  frame = requestAnimationFrame(loop);
+}
+
+document.getElementById("start").onclick = startGame;
+
+document.getElementById("calibrate").onclick = function(){
+  centerTilt = tilt;
+  statusText.textContent =
+    "✅ تمت المعايرة على وضع الهاتف الحالي.";
+};
+</script>
+</body>
+</html>
